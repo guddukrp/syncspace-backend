@@ -8,12 +8,16 @@ import com.syncspace.dto.task.UpdateTaskStatusRequest;
 import com.syncspace.entity.Project;
 import com.syncspace.entity.Task;
 import com.syncspace.entity.TaskStatus;
+import com.syncspace.exception.BadRequestException;
 import com.syncspace.exception.NotFoundException;
+import com.syncspace.exception.UnauthorizedException;
 import com.syncspace.mapper.TaskMapper;
 import com.syncspace.repository.ProjectRepository;
 import com.syncspace.repository.TaskRepository;
+import com.syncspace.repository.WorkspaceMemberRepository;
 import com.syncspace.service.ActivityLogService;
 import com.syncspace.service.TaskService;
+import com.syncspace.service.WorkspaceAuthorizationService;
 import com.syncspace.util.PageResponseUtil;
 import com.syncspace.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -35,12 +40,15 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectRepository projectRepository;
     private final TaskMapper taskMapper;
     private final ActivityLogService activityLogService;
+    private final WorkspaceAuthorizationService workspaceAuthorizationService;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     @Override
     @Transactional
     public TaskResponse createTask(UUID projectId, CreateTaskRequest request) {
         Project project = projectRepository.findByIdAndDeletedFalse(projectId)
                 .orElseThrow(() -> new NotFoundException("Project not found: " + projectId));
+        workspaceAuthorizationService.requireWorkspaceMember(project.getWorkspace().getId());
 
         Task task = taskMapper.toEntity(request);
         task.setProject(project);
@@ -55,13 +63,16 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public TaskResponse getTaskById(UUID taskId) {
-        return taskMapper.toResponse(getActiveTask(taskId));
+        Task task = getActiveTask(taskId);
+        workspaceAuthorizationService.requireWorkspaceMember(task.getProject().getWorkspace().getId());
+        return taskMapper.toResponse(task);
     }
 
     @Override
     @Transactional
     public TaskResponse updateTaskStatus(UUID taskId, UpdateTaskStatusRequest request) {
         Task task = getActiveTask(taskId);
+        workspaceAuthorizationService.requireWorkspaceMember(task.getProject().getWorkspace().getId());
         String previousStatus = task.getStatus().name();
 
         task.setStatus(request.getStatus());
@@ -77,6 +88,14 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskResponse assignTask(UUID taskId, AssignTaskRequest request) {
         Task task = getActiveTask(taskId);
+        UUID workspaceId = task.getProject().getWorkspace().getId();
+        workspaceAuthorizationService.requireWorkspaceMember(workspaceId);
+
+        if (request.getAssigneeId() != null
+                && !workspaceMemberRepository.existsByWorkspaceIdAndUserIdAndDeletedFalse(workspaceId, request.getAssigneeId())) {
+            throw new BadRequestException("Assignee must be a member of the workspace");
+        }
+
         UUID previousAssignee = task.getAssigneeId();
 
         task.setAssigneeId(request.getAssigneeId());
@@ -94,10 +113,34 @@ public class TaskServiceImpl implements TaskService {
         Pageable pageable = PageRequest.of(page, size);
         Page<TaskResponse> mappedPage;
 
-        if (status == null) {
-            mappedPage = taskRepository.findByDeletedFalse(pageable).map(taskMapper::toResponse);
+        if (workspaceAuthorizationService.isCurrentUserAdmin()) {
+            if (status == null) {
+                mappedPage = taskRepository.findByDeletedFalse(pageable).map(taskMapper::toResponse);
+            } else {
+                mappedPage = taskRepository.findByStatusAndDeletedFalse(status, pageable).map(taskMapper::toResponse);
+            }
         } else {
-            mappedPage = taskRepository.findByStatusAndDeletedFalse(status, pageable).map(taskMapper::toResponse);
+            UUID currentUserId = SecurityUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                throw new UnauthorizedException("Authentication required");
+            }
+
+            List<UUID> workspaceIds = workspaceMemberRepository.findByUserIdAndDeletedFalseAndWorkspaceDeletedFalse(currentUserId, Pageable.unpaged())
+                    .stream()
+                    .map(member -> member.getWorkspace().getId())
+                    .toList();
+
+            if (workspaceIds.isEmpty()) {
+                return PageResponseUtil.fromPage(Page.empty(pageable));
+            }
+
+            if (status == null) {
+                mappedPage = taskRepository.findByProjectWorkspaceIdInAndDeletedFalse(workspaceIds, pageable)
+                        .map(taskMapper::toResponse);
+            } else {
+                mappedPage = taskRepository.findByProjectWorkspaceIdInAndStatusAndDeletedFalse(workspaceIds, status, pageable)
+                        .map(taskMapper::toResponse);
+            }
         }
 
         return PageResponseUtil.fromPage(mappedPage);
@@ -107,6 +150,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public void softDeleteTask(UUID taskId) {
         Task task = getActiveTask(taskId);
+        workspaceAuthorizationService.requireWorkspaceManager(task.getProject().getWorkspace().getId());
         taskRepository.delete(task);
         log.info("Task soft deleted: {}", taskId);
     }

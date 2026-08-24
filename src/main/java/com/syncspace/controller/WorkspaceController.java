@@ -48,7 +48,7 @@ public class WorkspaceController {
     }
 
     @DeleteMapping("/{workspaceId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     public ApiResponse<Void> softDeleteWorkspace(@PathVariable UUID workspaceId) {
         workspaceService.softDeleteWorkspace(workspaceId);
         return ApiResponse.success("Workspace deleted", null);

@@ -45,7 +45,7 @@ public class ProjectController {
     }
 
     @DeleteMapping("/projects/{projectId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     public ApiResponse<Void> softDeleteProject(@PathVariable UUID projectId) {
         projectService.softDeleteProject(projectId);
         return ApiResponse.success("Project deleted", null);

@@ -12,5 +12,6 @@ public interface TaskMapper {
     Task toEntity(CreateTaskRequest request);
 
     @Mapping(target = "projectId", source = "project.id")
+    @Mapping(target = "workspaceId", source = "project.workspace.id")
     TaskResponse toResponse(Task task);
 }
