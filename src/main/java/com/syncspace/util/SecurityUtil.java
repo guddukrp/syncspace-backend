@@ -1,6 +1,7 @@
 package com.syncspace.util;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.UUID;
@@ -26,5 +27,18 @@ public final class SecurityUtil {
         }
 
         return null;
+    }
+
+    public static boolean hasRole(String role) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+
+        String expectedAuthority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return authentication.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(expectedAuthority::equals);
     }
 }

@@ -72,7 +72,7 @@ public class TaskController {
     }
 
     @DeleteMapping("/tasks/{taskId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
     public ApiResponse<Void> softDeleteTask(@PathVariable UUID taskId) {
         taskService.softDeleteTask(taskId);
         return ApiResponse.success("Task deleted", null);

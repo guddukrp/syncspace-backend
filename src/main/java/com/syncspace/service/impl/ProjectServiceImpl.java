@@ -9,6 +9,7 @@ import com.syncspace.exception.NotFoundException;
 import com.syncspace.mapper.ProjectMapper;
 import com.syncspace.repository.ProjectRepository;
 import com.syncspace.repository.WorkspaceRepository;
+import com.syncspace.service.WorkspaceAuthorizationService;
 import com.syncspace.service.ProjectService;
 import com.syncspace.util.PageResponseUtil;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +30,14 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final WorkspaceRepository workspaceRepository;
     private final ProjectMapper projectMapper;
+    private final WorkspaceAuthorizationService workspaceAuthorizationService;
 
     @Override
     @Transactional
     public ProjectResponse createProject(UUID workspaceId, CreateProjectRequest request) {
         Workspace workspace = workspaceRepository.findByIdAndDeletedFalse(workspaceId)
                 .orElseThrow(() -> new NotFoundException("Workspace not found: " + workspaceId));
+        workspaceAuthorizationService.requireWorkspaceMember(workspaceId);
 
         Project project = projectMapper.toEntity(request);
         project.setWorkspace(workspace);
@@ -47,6 +50,7 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProjectResponse> listProjects(UUID workspaceId, int page, int size) {
+        workspaceAuthorizationService.requireWorkspaceMember(workspaceId);
         Pageable pageable = PageRequest.of(page, size);
         Page<ProjectResponse> mappedPage = projectRepository.findByWorkspaceIdAndDeletedFalse(workspaceId, pageable)
                 .map(projectMapper::toResponse);
@@ -59,6 +63,7 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = projectRepository.findByIdAndDeletedFalse(projectId)
                 .orElseThrow(() -> new NotFoundException("Project not found: " + projectId));
 
+        workspaceAuthorizationService.requireWorkspaceManager(project.getWorkspace().getId());
         projectRepository.delete(project);
         log.info("Project soft deleted: {}", projectId);
     }

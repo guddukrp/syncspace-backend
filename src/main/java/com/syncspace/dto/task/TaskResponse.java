@@ -12,6 +12,7 @@ import java.util.UUID;
 public class TaskResponse {
     private UUID id;
     private UUID projectId;
+    private UUID workspaceId;
     private String title;
     private String description;
     private TaskStatus status;

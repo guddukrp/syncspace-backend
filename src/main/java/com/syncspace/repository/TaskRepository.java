@@ -16,4 +16,12 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
     Page<Task> findByDeletedFalse(Pageable pageable);
 
     Page<Task> findByStatusAndDeletedFalse(TaskStatus status, Pageable pageable);
+
+    Page<Task> findByProjectWorkspaceIdInAndDeletedFalse(Iterable<UUID> workspaceIds, Pageable pageable);
+
+    Page<Task> findByProjectWorkspaceIdInAndStatusAndDeletedFalse(
+            Iterable<UUID> workspaceIds,
+            TaskStatus status,
+            Pageable pageable
+    );
 }

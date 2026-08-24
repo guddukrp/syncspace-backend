@@ -10,6 +10,7 @@ Production-ready Spring Boot backend scaffold for a collaborative workspace/task
 - PostgreSQL
 - MapStruct
 - Lombok
+- Flyway
 
 ## Architecture
 Layered architecture with packages:
@@ -53,7 +54,7 @@ Layered architecture with packages:
 5. Security
 - Spring Security 6 config
 - Stateless session policy
-- JWT filter placeholder (`JwtAuthenticationFilter`)
+- JWT bearer authentication (`JwtAuthenticationFilter`)
 - Method-level authorization with `@PreAuthorize`
 
 ## API Response Format
@@ -77,6 +78,7 @@ Set environment variables:
 
 `application.yml` uses:
 - `spring.jpa.hibernate.ddl-auto=validate`
+- Flyway migrations from `src/main/resources/db/migration`
 
 ## Run Locally
 ```bash
@@ -99,6 +101,5 @@ docker run -p 8080:8080 \
 ```
 
 ## Notes
-- JWT parsing in `JwtAuthenticationFilter` is intentionally placeholder logic.
-- Replace placeholder token handling with real JWT verification before production deployment.
-- Ensure DB schema column names/types match entity mappings exactly because `ddl-auto=validate` is enabled.
+- Ensure DB schema changes are made through Flyway migrations because `ddl-auto=validate` is enabled by default.
+- Use a strong production `JWT_SECRET`; do not rely on the local fallback value in deployed environments.

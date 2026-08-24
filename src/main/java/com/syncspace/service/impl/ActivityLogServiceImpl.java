@@ -2,9 +2,13 @@ package com.syncspace.service.impl;
 
 import com.syncspace.dto.activity.ActivityLogResponse;
 import com.syncspace.entity.ActivityLog;
+import com.syncspace.entity.Project;
 import com.syncspace.entity.Task;
+import com.syncspace.exception.NotFoundException;
 import com.syncspace.repository.ActivityLogRepository;
+import com.syncspace.repository.ProjectRepository;
 import com.syncspace.service.ActivityLogService;
+import com.syncspace.service.WorkspaceAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +23,8 @@ import java.util.UUID;
 public class ActivityLogServiceImpl implements ActivityLogService {
 
     private final ActivityLogRepository activityLogRepository;
+    private final ProjectRepository projectRepository;
+    private final WorkspaceAuthorizationService workspaceAuthorizationService;
 
     @Override
     @Transactional
@@ -41,6 +47,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     @Override
     @Transactional(readOnly = true)
     public List<ActivityLogResponse> listByWorkspace(UUID workspaceId) {
+        workspaceAuthorizationService.requireWorkspaceMember(workspaceId);
         return activityLogRepository.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId)
                 .stream()
                 .map(this::toResponse)
@@ -50,6 +57,10 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     @Override
     @Transactional(readOnly = true)
     public List<ActivityLogResponse> listByProject(UUID projectId) {
+        Project project = projectRepository.findByIdAndDeletedFalse(projectId)
+                .orElseThrow(() -> new NotFoundException("Project not found: " + projectId));
+        workspaceAuthorizationService.requireWorkspaceMember(project.getWorkspace().getId());
+
         return activityLogRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
                 .map(this::toResponse)
