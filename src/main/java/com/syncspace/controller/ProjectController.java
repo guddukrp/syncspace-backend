@@ -25,6 +25,15 @@ public class ProjectController {
 
     private final ProjectService projectService;
 
+    @GetMapping("/projects")
+    @PreAuthorize("hasAnyRole('ADMIN','USER')")
+    public ApiResponse<PageResponse<ProjectResponse>> listAccessibleProjects(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ApiResponse.success("Project list fetched", projectService.listAccessibleProjects(page, size));
+    }
+
     @PostMapping("/workspaces/{workspaceId}/projects")
     @PreAuthorize("hasAnyRole('ADMIN','USER')")
     public ApiResponse<ProjectResponse> createProject(

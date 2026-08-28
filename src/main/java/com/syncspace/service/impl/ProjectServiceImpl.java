@@ -8,10 +8,13 @@ import com.syncspace.entity.Workspace;
 import com.syncspace.exception.NotFoundException;
 import com.syncspace.mapper.ProjectMapper;
 import com.syncspace.repository.ProjectRepository;
+import com.syncspace.repository.WorkspaceMemberRepository;
 import com.syncspace.repository.WorkspaceRepository;
 import com.syncspace.service.WorkspaceAuthorizationService;
 import com.syncspace.service.ProjectService;
+import com.syncspace.service.WorkspaceAuthorizationService;
 import com.syncspace.util.PageResponseUtil;
+import com.syncspace.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -29,6 +33,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectRepository projectRepository;
     private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
     private final ProjectMapper projectMapper;
     private final WorkspaceAuthorizationService workspaceAuthorizationService;
 
@@ -45,6 +50,30 @@ public class ProjectServiceImpl implements ProjectService {
         Project saved = projectRepository.save(project);
         log.info("Project created: {} in workspace {}", saved.getId(), workspaceId);
         return projectMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ProjectResponse> listAccessibleProjects(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Project> projects;
+        if (SecurityUtil.hasRole("ADMIN")) {
+            projects = projectRepository.findByDeletedFalse(pageable);
+        } else {
+            UUID currentUserId = SecurityUtil.getCurrentUserId();
+            List<UUID> workspaceIds = workspaceMemberRepository
+                    .findByUserIdAndDeletedFalseAndWorkspaceDeletedFalse(currentUserId, Pageable.unpaged())
+                    .stream()
+                    .map(member -> member.getWorkspace().getId())
+                    .toList();
+
+            projects = workspaceIds.isEmpty()
+                    ? Page.empty(pageable)
+                    : projectRepository.findByWorkspaceIdInAndDeletedFalse(workspaceIds, pageable);
+        }
+
+        return PageResponseUtil.fromPage(projects.map(projectMapper::toResponse));
     }
 
     @Override

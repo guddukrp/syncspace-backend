@@ -12,5 +12,9 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
     Optional<Project> findByIdAndDeletedFalse(UUID id);
 
+    Page<Project> findByDeletedFalse(Pageable pageable);
+
     Page<Project> findByWorkspaceIdAndDeletedFalse(UUID workspaceId, Pageable pageable);
+
+    Page<Project> findByWorkspaceIdInAndDeletedFalse(Iterable<UUID> workspaceIds, Pageable pageable);
 }
