@@ -10,6 +10,8 @@ public interface ProjectService {
 
     ProjectResponse createProject(UUID workspaceId, CreateProjectRequest request);
 
+    PageResponse<ProjectResponse> listAccessibleProjects(int page, int size);
+
     PageResponse<ProjectResponse> listProjects(UUID workspaceId, int page, int size);
 
     void softDeleteProject(UUID projectId);
